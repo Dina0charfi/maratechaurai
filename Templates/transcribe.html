@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Voice-to-Text{% endblock %}
+
+{% block css %}
+<style>
+    .transcribe-section {
+        padding-top: 140px;
+    }
+
+    .transcribe-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 16px;
+    }
+
+    .transcribe-actions .main-button {
+        border: 0;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+    <!-- ***** Header ***** -->
+    <header class="header-area header-sticky">
+        <div class="container">
+            <nav class="main-nav">
+                <a href="#" class="logo">Voice-to-Text</a>
+                <ul class="nav">
+                    <li><a href="#record" class="menu-item">تسجيل الصوت</a></li>
+                    <li><a href="#result" class="menu-item">النص المستخرج</a></li>
+                </ul>
+                <a class='menu-trigger'><span>Menu</span></a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- ***** Section Enregistrement ***** -->
+    <section class="section transcribe-section" id="record">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-6 offset-lg-3">
+                    <div class="text-center">
+                        <h2>🎤 تسجيل الصوت و تحويله إلى نص</h2>
+                        <p>ابدأ التسجيل من الميكروفون ثم أرسله للتفريغ.</p>
+
+                        <div class="transcribe-actions">
+                            <button id="start" class="main-button">ابدأ التسجيل</button>
+                            <button id="stop" class="main-button" disabled>أوقف التسجيل</button>
+                        </div>
+
+                        <p id="status" class="mt-2"></p>
+
+                        <form id="uploadForm" method="post" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <input type="file" name="audio" id="audioFile" hidden>
+                            <div class="transcribe-actions">
+                                <button type="submit" class="main-button">ارسال الصوت للتفريغ</button>
+                            </div>
+                           {% if sign_image %}
+    <img src="{{ sign_image }}" width="300" alt="Signe pour {{ translit }}">
+{% else %}
+    <p>Mot non trouvé dans le dataset de signes.</p>
+{% endif %}
+
+
+                        </form>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ***** Section Résultat ***** -->
+    <section class="section" id="result">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 offset-lg-2">
+                    <div class="text-center">
+                        <h3>النص المستخرج</h3>
+                        <pre class="border p-3" style="background-color: #f8f9fa;">{{ text }}</pre>
+                        <h3>التحويل إلى اللاتينية</h3>
+                        <pre class="border p-3" style="background-color: #f8f9fa;">{{ translit }}</pre>
+                        <p style="color:red;">{{ error }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+{% endblock %}
+
+{% block extra_js %}
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+
+        const startBtn = document.getElementById("start");
+        const stopBtn = document.getElementById("stop");
+        const audioFileInput = document.getElementById("audioFile");
+        const status = document.getElementById("status");
+
+        startBtn.onclick = async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = e => {
+                audioChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = e => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const file = new File([audioBlob], "recorded.webm", { type: 'audio/webm' });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                audioFileInput.files = dataTransfer.files;
+                status.innerText = "✅ التسجيل انتهى. يمكنك الآن إرسال الصوت.";
+            };
+
+            mediaRecorder.start();
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            status.innerText = "⏳ التسجيل جاري...";
+        };
+
+        stopBtn.onclick = () => {
+            mediaRecorder.stop();
+            mediaRecorder.stream.getTracks().forEach(t => t.stop());
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        };
+    </script>
+{% endblock %}

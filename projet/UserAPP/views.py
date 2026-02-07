@@ -1,3 +1,5 @@
+from email.mime import text
+from multiprocessing import context
 import os
 import sys
 from pathlib import Path
@@ -5,6 +7,10 @@ from pathlib import Path
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from django.shortcuts import render
+from .utils_sign import get_sign_for_word
+
+from pathlib import Path
+from .utils import arabic_to_latin  # si tu as ta fonction de translittération
 
 REPO_ROOT = settings.BASE_DIR.parent
 if str(REPO_ROOT) not in sys.path:
@@ -14,11 +20,11 @@ from speech_to_text_vosk_web import convert_to_wav, transcribe_file, wav_has_aud
 
 
 def home(request):
-    return render(request, "UserAPP/home.html")
+    return render(request, "home.html")
 
 
 def transcribe(request):
-    context = {"text": "", "error": ""}
+    context = {"text": "", "error": "", "translit": "", "sign_image": None}
 
     if request.method == "POST":
         audio_file = request.FILES.get("audio")
@@ -40,11 +46,25 @@ def transcribe(request):
                     convert_to_wav(file_path, wav_path)
                     if not wav_has_audio(wav_path):
                         raise RuntimeError("Audio trop court ou vide.")
-                    context["text"] = transcribe_file(wav_path)
+                    text = transcribe_file(wav_path)
                 else:
                     if not wav_has_audio(file_path):
                         raise RuntimeError("Audio trop court ou vide.")
-                    context["text"] = transcribe_file(file_path)
+                    text = transcribe_file(file_path)
+
+                context["text"] = text
+
+                # ---- NOUVEAU : translit arabe -> latin ----
+                # Après avoir transcrit et translittéré
+                translit_word = arabic_to_latin(text)
+                sign_image = get_sign_for_word(translit_word)
+                context["translit"] = translit_word
+                context["sign_image"] = sign_image
+
+
+
+                
+
             except Exception as exc:
                 context["error"] = f"Transcription échouée : {exc}"
             finally:
@@ -53,4 +73,4 @@ def transcribe(request):
                 if wav_path and os.path.exists(wav_path):
                     os.remove(wav_path)
 
-    return render(request, "UserAPP/transcribe.html", context)
+    return render(request, "transcribe.html", context)
